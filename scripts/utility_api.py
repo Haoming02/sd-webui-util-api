@@ -19,14 +19,16 @@ def register_utils(_, app: FastAPI):
         if len(images) < 2:
             raise HTTPException(status_code=500, detail="Invalid Input")
 
-        input_images = [decode(img) for img in images]
-        print(f"[API.Utils] Stacking {len(input_images)} images")
+        input_images = [
+            (decode(img).convert("RGBA") if force else decode(img)) for img in images
+        ]
 
         bg, *fg = input_images
-        if force:
-            bg = bg.convert("RGB")
-            fg = [img.convert("RGBA") for img in fg]
+        size = bg.size
+        if not all(img.size == size for img in fg):
+            raise HTTPException(status_code=500, detail="Size Unmatched")
 
+        print(f"[API.Utils] Stacking {len(input_images)} images")
         for img in fg:
             bg.paste(img, None, img)
         return {"image": encode(bg)}
@@ -44,6 +46,24 @@ def register_utils(_, app: FastAPI):
         print(f"[API.Utils] Resizing {input_image.size} to {(width, height)}")
         resized_image = input_image.resize((width, height), Image.LANCZOS)
         return {"image": encode(resized_image)}
+
+    @app.post(path="/utils/tint", response_model=SingleImageResponse)
+    async def tint(
+        image: str = Body("base64", title="input image"),
+        color: list[int] = Body([255, 255, 255, 128], title="Color32"),
+    ):
+        if not image:
+            raise HTTPException(status_code=500, detail="No Input")
+        if len(color) != 4:
+            raise HTTPException(status_code=500, detail="Invalid Color")
+
+        input_image = decode(image)
+        r, g, b, alpha = input_image.split()
+        overlay = Image.new("RGBA", input_image.size, tuple(color))
+        print(f"[API.Utils] Tinting to {color}")
+        tinted_image = Image.alpha_composite(input_image, overlay)
+        composite = Image.composite(tinted_image, input_image, alpha)
+        return {"image": encode(composite)}
 
     @app.post(path="/utils/crop", response_model=SingleImageResponse)
     async def crop(

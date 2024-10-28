@@ -14,5 +14,5 @@ def decode(b64: str) -> Image.Image:
 
 def encode(img: Image.Image) -> str:
     with BytesIO() as buffer:
-        img.save(buffer, format="PNG", optimize=True)
+        img.save(buffer, format="PNG")
         return b64encode(buffer.getvalue()).decode("utf-8")
